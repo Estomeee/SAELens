@@ -260,6 +260,7 @@ class JumpReLUTrainingSAE(TrainingSAE[JumpReLUTrainingSAEConfig]):
 
     def __init__(self, cfg: JumpReLUTrainingSAEConfig, use_error_term: bool = False):
         super().__init__(cfg, use_error_term)
+        _validate_jumprelu_config(cfg)
 
         # We'll store a bandwidth for the training approach, if needed
         self.bandwidth = cfg.jumprelu_bandwidth
@@ -354,7 +355,7 @@ class JumpReLUTrainingSAE(TrainingSAE[JumpReLUTrainingSAEConfig]):
             l0_loss = (step_input.coefficients["l0"] * per_item_l0_loss).mean()
         elif self.cfg.jumprelu_sparsity_loss_mode == "quadratic":
             l0 = torch.sum(
-                Step.apply(
+                Step.apply(  # type: ignore
                     hidden_pre,
                     threshold,
                     self.bandwidth,
@@ -431,3 +432,14 @@ def calculate_pre_act_loss(
         (threshold - hidden_pre).relu() * dead_neuron_mask * W_dec_norm
     ).sum(dim=-1)
     return pre_act_loss_coefficient * per_item_loss.mean()
+
+
+def _validate_jumprelu_config(cfg: JumpReLUTrainingSAEConfig) -> None:
+    if cfg.jumprelu_sparsity_loss_mode == "quadratic":
+        if cfg.target_l0 <= 0:
+            raise ValueError("cfg.target_l0 must be greater than 0.")
+        if cfg.target_l0 > cfg.d_sae:
+            raise ValueError(
+                f"cfg.target_l0 must be less than or equal to cfg.d_sae "
+                f"({cfg.d_sae}), got {cfg.target_l0}."
+            )
