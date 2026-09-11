@@ -204,7 +204,7 @@ class JumpReLUTrainingSAEConfig(TrainingSAEConfig):
         pre_act_loss_coefficient: coefficient for the pre-activation loss. Set to None to disable. Set to 3e-6 to match Anthropic's setup.
         jumprelu_tanh_scale: scale for the tanh sparsity loss. Only relevant for "tanh" sparsity loss mode.
         jumprelu_ste_to_input: whether the straight-through estimator also passes gradient to the pre-activations, and so to the encoder, rather than to the threshold alone. False matches DeepMind's JumpReLU, True matches Anthropic's setup.
-        target_l0: target number of active latents for the quadratic sparsity loss. Only relevant for "quadratic" sparsity loss mode.
+        target_l0: target number of active latents for the quadratic sparsity loss. Must be set when using "quadratic" sparsity loss mode, and is ignored otherwise.
     """
 
     jumprelu_init_threshold: float = 0.01
@@ -223,8 +223,8 @@ class JumpReLUTrainingSAEConfig(TrainingSAEConfig):
     # Anthropic passes the STE gradient to all model params, DeepMind only to the threshold
     jumprelu_ste_to_input: bool = False
 
-    # only relevant for quadratic sparsity loss mode
-    target_l0: float = 30.0
+    # must be set for quadratic sparsity loss mode
+    target_l0: float | None = None
 
     @override
     @classmethod
@@ -350,6 +350,10 @@ class JumpReLUTrainingSAE(TrainingSAE[JumpReLUTrainingSAEConfig]):
             if self.cfg.jumprelu_sparsity_loss_mode == "quadratic":
                 # Gemma Scope 2 quadratic penalty around a target L0
                 target_l0 = self.cfg.target_l0
+                if target_l0 is None:
+                    raise ValueError(
+                        "cfg.target_l0 must be set for quadratic sparsity loss mode."
+                    )
                 per_item_l0_loss = 2 / target_l0 * (l0 - target_l0) ** 2
             else:
                 per_item_l0_loss = l0
@@ -429,6 +433,10 @@ def calculate_pre_act_loss(
 
 def _validate_jumprelu_config(cfg: JumpReLUTrainingSAEConfig) -> None:
     if cfg.jumprelu_sparsity_loss_mode == "quadratic":
+        if cfg.target_l0 is None:
+            raise ValueError(
+                "cfg.target_l0 must be set for quadratic sparsity loss mode."
+            )
         if cfg.target_l0 <= 0:
             raise ValueError("cfg.target_l0 must be greater than 0.")
         if cfg.target_l0 > cfg.d_sae:

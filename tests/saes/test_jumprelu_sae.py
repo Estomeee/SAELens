@@ -383,6 +383,20 @@ def test_JumpReLUTrainingSAE_forward_tanh_sparsity_with_pre_act_loss():
     assert train_step_output.losses["pre_act_loss"] >= 0.0
 
 
+def test_JumpReLUTrainingSAE_quadratic_requires_target_l0():
+    cfg = build_jumprelu_sae_training_cfg(jumprelu_sparsity_loss_mode="quadratic")
+
+    with pytest.raises(ValueError, match="target_l0 must be set"):
+        JumpReLUTrainingSAE(cfg)
+
+
+def test_JumpReLUTrainingSAE_non_quadratic_modes_do_not_require_target_l0():
+    for mode in ("step", "tanh"):
+        cfg = build_jumprelu_sae_training_cfg(jumprelu_sparsity_loss_mode=mode)
+        sae = JumpReLUTrainingSAE(cfg)
+        assert sae.cfg.target_l0 is None
+
+
 @pytest.mark.parametrize("target_l0", [-1, 0])
 def test_JumpReLUTrainingSAE_quadratic_rejects_non_positive_target_l0(
     target_l0: float,

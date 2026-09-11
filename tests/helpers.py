@@ -139,7 +139,7 @@ class TrainingSAEConfigDict(TypedDict, total=False):
     use_sparse_activations: bool  # For TopK
     l0_coefficient: float  # For JumpReLU
     l0_warm_up_steps: int
-    target_l0: float  # For JumpReLU
+    target_l0: float | None  # For JumpReLU
     pre_act_loss_coefficient: float | None  # For JumpReLU
     topk_threshold_lr: float  # For BatchTopK
     jumprelu_sparsity_loss_mode: Literal["step", "tanh", "quadratic"]  # For JumpReLU
@@ -354,7 +354,7 @@ def build_jumprelu_runner_cfg(
         "jumprelu_bandwidth": 0.001,
         "l0_coefficient": 0.3,
         "l0_warm_up_steps": 0,
-        "target_l0": 30.0,
+        "target_l0": None,
         "pre_act_loss_coefficient": None,
     }
     runner_cfg = _build_runner_config(
