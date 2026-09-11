@@ -204,7 +204,7 @@ class JumpReLUTrainingSAEConfig(TrainingSAEConfig):
         pre_act_loss_coefficient: coefficient for the pre-activation loss. Set to None to disable. Set to 3e-6 to match Anthropic's setup.
         jumprelu_tanh_scale: scale for the tanh sparsity loss. Only relevant for "tanh" sparsity loss mode.
         jumprelu_ste_to_input: whether the straight-through estimator also passes gradient to the pre-activations, and so to the encoder, rather than to the threshold alone. False matches DeepMind's JumpReLU, True matches Anthropic's setup.
-        target_l0: sparsity target value, relevant only for the quadratic sparsity loss mode
+        target_l0: target number of active latents for the quadratic sparsity loss. Only relevant for "quadratic" sparsity loss mode.
     """
 
     jumprelu_init_threshold: float = 0.01
@@ -224,7 +224,7 @@ class JumpReLUTrainingSAEConfig(TrainingSAEConfig):
     jumprelu_ste_to_input: bool = False
 
     # only relevant for quadratic sparsity loss mode
-    target_l0: int = 30
+    target_l0: float = 30.0
 
     @override
     @classmethod
@@ -337,7 +337,7 @@ class JumpReLUTrainingSAE(TrainingSAE[JumpReLUTrainingSAEConfig]):
 
         threshold = self.threshold.to(hidden_pre.dtype)
         W_dec_norm = self.W_dec.norm(dim=1)
-        if self.cfg.jumprelu_sparsity_loss_mode == "step":
+        if self.cfg.jumprelu_sparsity_loss_mode in ("step", "quadratic"):
             l0 = torch.sum(
                 Step.apply(  # type: ignore
                     hidden_pre,
@@ -347,25 +347,18 @@ class JumpReLUTrainingSAE(TrainingSAE[JumpReLUTrainingSAEConfig]):
                 ),
                 dim=-1,
             )
-            l0_loss = (step_input.coefficients["l0"] * l0).mean()
+            if self.cfg.jumprelu_sparsity_loss_mode == "quadratic":
+                # Gemma Scope 2 quadratic penalty around a target L0
+                target_l0 = self.cfg.target_l0
+                per_item_l0_loss = 2 / target_l0 * (l0 - target_l0) ** 2
+            else:
+                per_item_l0_loss = l0
+            l0_loss = (step_input.coefficients["l0"] * per_item_l0_loss).mean()
         elif self.cfg.jumprelu_sparsity_loss_mode == "tanh":
             per_item_l0_loss = torch.tanh(
                 self.cfg.jumprelu_tanh_scale * feature_acts * W_dec_norm
             ).sum(dim=-1)
             l0_loss = (step_input.coefficients["l0"] * per_item_l0_loss).mean()
-        elif self.cfg.jumprelu_sparsity_loss_mode == "quadratic":
-            l0 = torch.sum(
-                Step.apply(  # type: ignore
-                    hidden_pre,
-                    threshold,
-                    self.bandwidth,
-                    self.cfg.jumprelu_ste_to_input,
-                ),
-                dim=-1,
-            )
-            target_l0 = self.cfg.target_l0
-            quadratic_l0 = 2 / target_l0 * (l0 - target_l0) ** 2
-            l0_loss = (step_input.coefficients["l0"] * quadratic_l0).mean()
         else:
             raise ValueError(
                 f"Invalid sparsity loss mode: {self.cfg.jumprelu_sparsity_loss_mode}"

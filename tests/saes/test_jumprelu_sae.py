@@ -385,7 +385,7 @@ def test_JumpReLUTrainingSAE_forward_tanh_sparsity_with_pre_act_loss():
 
 @pytest.mark.parametrize("target_l0", [-1, 0])
 def test_JumpReLUTrainingSAE_quadratic_rejects_non_positive_target_l0(
-    target_l0: int,
+    target_l0: float,
 ):
     cfg = build_jumprelu_sae_training_cfg(
         jumprelu_sparsity_loss_mode="quadratic",
@@ -408,7 +408,7 @@ def test_JumpReLUTrainingSAE_quadratic_rejects_target_l0_greater_than_d_sae():
 
 
 @pytest.mark.parametrize("target_l0", [1, 16, 32])
-def test_JumpReLUTrainingSAE_quadratic_accepts_valid_target_l0(target_l0: int):
+def test_JumpReLUTrainingSAE_quadratic_accepts_valid_target_l0(target_l0: float):
     cfg = build_jumprelu_sae_training_cfg(
         d_sae=32,
         jumprelu_sparsity_loss_mode="quadratic",
@@ -463,7 +463,7 @@ def test_JumpReLUTrainingSAE_quadratic_l0_loss_is_zero_at_target():
     ],
 )
 def test_JumpReLUTrainingSAE_quadratic_l0_loss_has_expected_gradient_direction(
-    target_l0: int,
+    target_l0: float,
     expected_sign: int,
 ):
     sae = JumpReLUTrainingSAE(
